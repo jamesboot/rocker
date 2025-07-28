@@ -22,6 +22,7 @@ Use the singularity pull command to import the desired Rocker image from Docker 
 
 ```
 singularity pull docker://rocker/rstudio:4.4.2
+singularity pull docker://bioconductor/bioconductor_docker:3.21-R-4.5.1
 ```
 
 ## 2. Run RStudio in SBATCH job
