@@ -29,7 +29,7 @@ fi
 # Create rsession.sh wrapper to isolate R_LIBS_USER and suppress session restore
 cat > "${workdir}/rsession.sh" <<"END"
 #!/bin/sh
-export R_LIBS_USER=${HOME}/R/rocker-rstudio/4.4.2
+export R_LIBS_USER=${HOME}/R/rocker-rstudio/bioconductor_docker_3.21-R-4.5.1
 mkdir -p "${R_LIBS_USER}"
 # Prevent R from restoring saved sessions by default
 export R_OPTIONS="--no-restore --no-save"
