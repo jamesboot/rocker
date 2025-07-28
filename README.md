@@ -1,5 +1,6 @@
 # rocker
-Setting up rocker singularity container
+
+Setting up rocker singularity container and running remote rstudio session on HPC.
 
 ## 1. Import Rocker Image
 Use the singularity pull command to import the desired Rocker image from Docker Hub into a (compressed, read-only) Singularity Image File:
@@ -8,8 +9,10 @@ Use the singularity pull command to import the desired Rocker image from Docker 
 
 ## 2. Run RStudio in SBATCH job
 
-Edit `rstudio-server.sh`
+### a) Edit `rstudio-server.sh`
 
-Add relevant `nemo` locations for `SINGULARITY_BIND`
+- Add relevant `nemo` locations for `SINGULARITY_BIND`
 
-Submit: `sbatch rstudio-server.sh`
+### b) Run script
+
+- Submit: `sbatch rstudio-server.sh`
