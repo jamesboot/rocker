@@ -2,7 +2,7 @@
 
 Setting up rocker singularity container and running remote rstudio session on HPC.
 
-## 1. Import Rocker Image
+## 1. Import Rocker Image (first time only)
 
 ### a) Setup a directory/cache for singularity images
 
