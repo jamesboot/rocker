@@ -38,6 +38,43 @@ sbatch rstudio-server.sh
 
 ### c) Inspect the output file for instructions
 
+The job output contains instructions on how to login to the remote rstudio session.
+
 ```
 cat rstudio-server.job.{JOB_ID}
 ```
+
+## 3. Setup `renv` (first time only)
+
+### a) Install `renv`
+
+```
+install.packages("renv")
+```
+
+### b) Initialise `renv` project 
+
+```
+renv::init()
+```
+
+### c) Install relevant libraries and update lock file
+
+Installing libraries
+```
+renv::install("Seurat") # Install from CRAN
+renv::install("bioc::DESeq2") # Install from bioconductor example
+renv::install("jokergoo/ComplexHeatmap") # Install from github example
+```
+
+Snapshotting (often done automatically but may need ot be done from time to time):
+```
+renv::snapshot()
+```
+
+
+
+
+
+
+
