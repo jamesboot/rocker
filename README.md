@@ -32,9 +32,8 @@ singularity pull docker://rocker/rstudio:4.4.2
 
 ### b) Run script
 
-- Submit:
 ```
-sbatch rstudio-server.sh`
+sbatch rstudio-server.sh
 ```
 
 ### c) Inspect the output file for instructions
