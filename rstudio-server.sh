@@ -12,13 +12,13 @@ set -euo pipefail
 # Load Singularity
 module load Singularity/3.6.4
 
-# Set container image path (update this if necessary)
-rstudio_sif="rstudio_4.4.2.sif"
+# Path to Singularity image
+rstudio_sif="/nemo/stp/babs/working/bootj/projects/testbed/james.boot/rockertest/rstudio_4.4.2.sif"
 
-# Set host URL for SSH tunneling
+# Host URL for SSH tunnel
 HOSTURL=nemo.thecrick.org
 
-# Create temp working directory
+# Create temporary working directory
 workdir=$(python3 -c 'import tempfile; print(tempfile.mkdtemp())')
 
 if [ -z "$workdir" ]; then
@@ -26,46 +26,53 @@ if [ -z "$workdir" ]; then
   exit 1
 fi
 
-# Set R_LIBS_USER to avoid conflicts with host R libraries
+# Create rsession.sh wrapper to isolate R_LIBS_USER and suppress session restore
 cat > "${workdir}/rsession.sh" <<"END"
 #!/bin/sh
 export R_LIBS_USER=${HOME}/R/rocker-rstudio/4.4.2
 mkdir -p "${R_LIBS_USER}"
-# Optional custom R config:
-# export R_PROFILE_USER=/path/to/Rprofile
-# export R_ENVIRON_USER=/path/to/Renviron
+# Prevent R from restoring saved sessions by default
+export R_OPTIONS="--no-restore --no-save"
 exec /usr/lib/rstudio-server/bin/rsession "${@}"
 END
 
 chmod +x "${workdir}/rsession.sh"
 
-# Directories to bind to container
+# Create rsession.conf to set default working and project directory
+cat > "${workdir}/rsession.conf" << END
+session-default-working-dir=${PWD}
+session-default-new-project-dir=${PWD}
+END
+
+# Directories to bind into the container
 TOBIND=/nemo/stp/babs/working/bootj
-export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${TOBIND}"
+export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND}"
 
 # RStudio Server environment configuration
 export SINGULARITYENV_RSTUDIO_SESSION_TIMEOUT=0
 export SINGULARITYENV_USER=$(id -un)
 export SINGULARITYENV_PASSWORD=$(openssl rand -base64 15)
 
-# Get an unused port
+# Allocate an unused port for RStudio Server
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
 
+# Output connection instructions to stderr
 cat 1>&2 <<END
-1. SSH tunnel from your workstation using the following command:
+1. SSH tunnel from your workstation using:
 
    ssh -N -L 8787:${HOSTNAME}.${HOSTURL}:${PORT} ${SINGULARITYENV_USER}@${HOSTNAME}.${HOSTURL}
 
-   and point your web browser to http://localhost:8787
+   Then open your browser at: http://localhost:8787
 
-2. Log in to RStudio Server using the following credentials:
+2. Log in to RStudio Server with:
 
    user: ${SINGULARITYENV_USER}
    password: ${SINGULARITYENV_PASSWORD}
 
-To stop the session:
-1. Exit the RStudio session (power button in top right)
-2. Run on login node: scancel -f ${SLURM_JOB_ID}
+To stop your session:
+
+1. Click the power button in RStudio
+2. Or run: scancel -f ${SLURM_JOB_ID}
 END
 
 # Launch RStudio Server in container
