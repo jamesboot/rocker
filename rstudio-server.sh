@@ -13,7 +13,7 @@ set -euo pipefail
 module load Singularity/3.6.4
 
 # Path to Singularity image
-rstudio_sif="/nemo/stp/babs/working/bootj/projects/testbed/james.boot/rockertest/rstudio_4.4.2.sif"
+rstudio_sif="bioconductor_docker_3.21-R-4.5.1.sif"
 
 # Host URL for SSH tunnel
 HOSTURL=nemo.thecrick.org
