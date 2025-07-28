@@ -5,7 +5,9 @@ Setting up rocker singularity container and running remote rstudio session on HP
 ## 1. Import Rocker Image
 Use the singularity pull command to import the desired Rocker image from Docker Hub into a (compressed, read-only) Singularity Image File:
 
-`singularity pull docker://rocker/rstudio:4.4.2`
+```
+singularity pull docker://rocker/rstudio:4.4.2
+```
 
 ## 2. Run RStudio in SBATCH job
 
@@ -15,4 +17,7 @@ Use the singularity pull command to import the desired Rocker image from Docker 
 
 ### b) Run script
 
-- Submit: `sbatch rstudio-server.sh`
+- Submit:
+```
+sbatch rstudio-server.sh`
+```
