@@ -7,9 +7,13 @@
 #SBATCH --mem=8192
 #SBATCH --output=rstudio-server.job.%j
 
+# Add directories for the container to bind
+TOBIND=/nemo/stp/babs/working/bootj
+
 # Load module
 module load Singularity/3.6.4
 
+# Specify host URL
 HOSTURL=nemo.thecrick.org
 
 # Create temporary directory to be populated with directories to bind-mount in the container where writable file systems are necessary.
@@ -31,7 +35,7 @@ END
 chmod +x ${workdir}/rsession.sh
 
 # Bind directories to the container
-export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,/nemo/stp/babs/working/bootj"
+export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${TOBIND}"
 
 # Do not suspend idle sessions.
 # Alternative to setting session-timeout-minutes=0 in /etc/rstudio/rsession.conf
@@ -42,11 +46,11 @@ export SINGULARITYENV_USER=$(id -un)
 export SINGULARITYENV_PASSWORD=$(openssl rand -base64 15)
 # get unused socket per https://unix.stackexchange.com/a/132524
 # tiny race condition between the python & singularity commands
-readonly PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+readonly PORT=$(./env/bin/python -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
 cat 1>&2 <<END
 1. SSH tunnel from your workstation using the following command:
 
-   ssh -N -L 8787:${HOSTNAME}:${PORT} ${SINGULARITYENV_USER}@LOGIN-HOST
+   ssh -N -L 8787:${HOSTNAME}.${HOSTURL}:${PORT} ${SINGULARITYENV_USER}@${HOSTNAME}.${HOSTURL}
 
    and point your web browser to http://localhost:8787
 
@@ -72,6 +76,6 @@ singularity exec --cleanenv \
             --auth-pam-helper-path=pam-helper \
             --auth-stay-signed-in-days=30 \
             --auth-timeout-minutes=0 \
-            --server-user=$(whoami) \
+            --server-user=$(USER) \
             --rsession-path=/etc/rstudio/rsession.sh
 printf 'rserver exited' 1>&2
