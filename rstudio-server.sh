@@ -7,46 +7,50 @@
 #SBATCH --mem=8192
 #SBATCH --output=rstudio-server.job.%j
 
-# Add directories for the container to bind
-TOBIND=/nemo/stp/babs/working/bootj
+set -euo pipefail
 
-# Load module
+# Load Singularity
 module load Singularity/3.6.4
 
-# Specify host URL
+# Set container image path (update this if necessary)
+rstudio_sif="rstudio_4.4.2.sif"
+
+# Set host URL for SSH tunneling
 HOSTURL=nemo.thecrick.org
 
-# Create temporary directory to be populated with directories to bind-mount in the container where writable file systems are necessary.
-# This creates a temporary directory using Python and assigns the full path of that directory to the Bash variable workdir
-workdir=$(./env/bin/python -c 'import tempfile; print(tempfile.mkdtemp())')
+# Create temp working directory
+workdir=$(python3 -c 'import tempfile; print(tempfile.mkdtemp())')
 
-# Set R_LIBS_USER to an existing path specific to rocker/rstudio to avoid conflicts with
-# personal libraries from any R installation in the host environment
-cat > ${workdir}/rsession.sh <<"END"
+if [ -z "$workdir" ]; then
+  echo "Failed to create temporary workdir" >&2
+  exit 1
+fi
+
+# Set R_LIBS_USER to avoid conflicts with host R libraries
+cat > "${workdir}/rsession.sh" <<"END"
 #!/bin/sh
 export R_LIBS_USER=${HOME}/R/rocker-rstudio/4.4.2
 mkdir -p "${R_LIBS_USER}"
-## custom Rprofile & Renviron (default is $HOME/.Rprofile and $HOME/.Renviron)
+# Optional custom R config:
 # export R_PROFILE_USER=/path/to/Rprofile
 # export R_ENVIRON_USER=/path/to/Renviron
 exec /usr/lib/rstudio-server/bin/rsession "${@}"
 END
 
-chmod +x ${workdir}/rsession.sh
+chmod +x "${workdir}/rsession.sh"
 
-# Bind directories to the container
+# Directories to bind to container
+TOBIND=/nemo/stp/babs/working/bootj
 export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${TOBIND}"
 
-# Do not suspend idle sessions.
-# Alternative to setting session-timeout-minutes=0 in /etc/rstudio/rsession.conf
-# https://github.com/rstudio/rstudio/blob/v1.4.1106/src/cpp/server/ServerSessionManager.cpp#L126
+# RStudio Server environment configuration
 export SINGULARITYENV_RSTUDIO_SESSION_TIMEOUT=0
-
 export SINGULARITYENV_USER=$(id -un)
 export SINGULARITYENV_PASSWORD=$(openssl rand -base64 15)
-# get unused socket per https://unix.stackexchange.com/a/132524
-# tiny race condition between the python & singularity commands
-readonly PORT=$(./env/bin/python -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+
+# Get an unused port
+PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+
 cat 1>&2 <<END
 1. SSH tunnel from your workstation using the following command:
 
@@ -54,28 +58,28 @@ cat 1>&2 <<END
 
    and point your web browser to http://localhost:8787
 
-2. log in to RStudio Server using the following credentials:
+2. Log in to RStudio Server using the following credentials:
 
    user: ${SINGULARITYENV_USER}
    password: ${SINGULARITYENV_PASSWORD}
 
-When done using RStudio Server, terminate the job by:
-
-1. Exit the RStudio Session ("power" button in the top right corner of the RStudio window)
-2. Issue the following command on the login node:
-
-      scancel -f ${SLURM_JOB_ID}
+To stop the session:
+1. Exit the RStudio session (power button in top right)
+2. Run on login node: scancel -f ${SLURM_JOB_ID}
 END
 
+# Launch RStudio Server in container
 singularity exec --cleanenv \
-                 --scratch /run,/tmp,/var/lib/rstudio-server \
-                 --workdir ${workdir} \
-                 rstudio_4.4.2.sif \
-    rserver --www-port ${PORT} \
-            --auth-none=0 \
-            --auth-pam-helper-path=pam-helper \
-            --auth-stay-signed-in-days=30 \
-            --auth-timeout-minutes=0 \
-            --server-user=$(USER) \
-            --rsession-path=/etc/rstudio/rsession.sh
-printf 'rserver exited' 1>&2
+    --scratch /run,/tmp,/var/lib/rstudio-server \
+    --workdir "${workdir}" \
+    "${rstudio_sif}" \
+    rserver \
+      --www-port "${PORT}" \
+      --auth-none=0 \
+      --auth-pam-helper-path=pam-helper \
+      --auth-stay-signed-in-days=30 \
+      --auth-timeout-minutes=0 \
+      --server-user="${SINGULARITYENV_USER}" \
+      --rsession-path=/etc/rstudio/rsession.sh
+
+printf 'rserver exited\n' 1>&2
