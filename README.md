@@ -11,7 +11,7 @@ Use the singularity pull command to import the desired Rocker image from Docker 
 
 ### a) Edit `rstudio-server.sh`
 
-- Add relevant `nemo` locations for `SINGULARITY_BIND`
+- Add relevant `nemo` locations for the `SINGULARITY_BIND` variable - add to `TOBIND` at top of script, separate by commas
 
 ### b) Run script
 
