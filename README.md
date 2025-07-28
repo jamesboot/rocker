@@ -4,10 +4,11 @@ Setting up rocker singularity container and running remote rstudio session on HP
 
 ## 1. Import Rocker Image
 
-### a) Navigate to project / working directory.
+### a) Setup a directory/cache for singularity images
 
 ```
-cd /path/to/dir
+mkdir -p /path/to/dir
+cd -p /path/to/dir
 ```
 
 ### b) Load singularity module
@@ -29,6 +30,7 @@ singularity pull docker://bioconductor/bioconductor_docker:3.21-R-4.5.1
 ### a) Edit `rstudio-server.sh`
 
 - Add relevant `nemo` locations for the `SINGULARITY_BIND` variable - add to `TOBIND` at top of script, separate by commas
+- Specify path to the singularity image downloaded previously - add to `rstudio_sif` variable at top of script
 
 ### b) Run script
 
