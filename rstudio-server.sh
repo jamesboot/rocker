@@ -7,13 +7,14 @@
 #SBATCH --mem=8192
 #SBATCH --output=rstudio-server.job.%j
 
+# Path to Singularity image and directories to bind
+rstudio_sif="bioconductor_docker_3.21-R-4.5.1.sif"
+TOBIND=/nemo/stp/babs/working/bootj
+
 set -euo pipefail
 
 # Load Singularity
 module load Singularity/3.6.4
-
-# Path to Singularity image
-rstudio_sif="bioconductor_docker_3.21-R-4.5.1.sif"
 
 # Host URL for SSH tunnel
 HOSTURL=nemo.thecrick.org
@@ -45,7 +46,6 @@ session-default-new-project-dir=${PWD}
 END
 
 # Directories to bind into the container
-TOBIND=/nemo/stp/babs/working/bootj
 export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND}"
 
 # RStudio Server environment configuration
