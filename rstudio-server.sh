@@ -20,6 +20,10 @@ module load Singularity/3.6.4
 # Host URL for SSH tunnel
 HOSTURL="nemo.thecrick.org"
 
+# Package library directory in current working directory
+export R_LIBS_USER="${PWD}/Rlibs"
+mkdir -p "${R_LIBS_USER}"
+
 # Verify image and bind directory exist
 if [ ! -f "$rstudio_sif" ]; then
   echo "ERROR: Singularity image not found: $rstudio_sif" >&2
@@ -37,13 +41,19 @@ mkdir -p -m 700 \
   "${workdir}/tmp" \
   "${workdir}/var/lib/rstudio-server"
 
+# Create database config
+cat > ${workdir}/database.conf <<END
+provider=sqlite
+directory=/var/lib/rstudio-server
+END
+
 # rsession wrapper
 cat > "${workdir}/rsession.sh" <<"END"
 #!/bin/sh
-export R_LIBS_USER="${pwd}/Rlibs"
-mkdir -p "${R_LIBS_USER}"
+export R_LIBS_USER="${R_LIBS_USER}"
+mkdir -p "\${R_LIBS_USER}"
 export R_OPTIONS="--no-restore --no-save"
-exec /usr/lib/rstudio-server/bin/rsession "$@"
+exec /usr/lib/rstudio-server/bin/rsession "\$@"
 END
 chmod +x "${workdir}/rsession.sh"
 
@@ -54,7 +64,7 @@ session-default-new-project-dir=${PWD}
 END
 
 # Bind mounts
-export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND},${workdir}/run:/run,${workdir}/tmp:/tmp,${workdir}/var/lib/rstudio-server:/var/lib/rstudio-server"
+export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND},${workdir}/run:/run,${workdir}/tmp:/tmp,${workdir}/var/lib/rstudio-server:/var/lib/rstudio-server,${workdir}/database.conf:/etc/rstudio/database.conf"
 
 # Environment variables for RStudio
 export SINGULARITYENV_RSTUDIO_SESSION_TIMEOUT=0
