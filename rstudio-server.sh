@@ -8,73 +8,67 @@
 #SBATCH --output=rstudio-server.job.%j
 
 set -euo pipefail
-set -x  # enable shell debugging
+set -x
 
-# Path to Singularity image and bind mount directory
+# === CONFIG ===
 rstudio_sif="bioconductor_docker_3.21-R-4.5.1.sif"
 TOBIND="/nemo/stp/babs/working/bootj"
-
-# Load Singularity
-module load Singularity/3.6.4
-
-# Host URL for SSH tunnel
 HOSTURL="nemo.thecrick.org"
 
-# Package library directory in current working directory
+# === Load Singularity ===
+module load Singularity/3.6.4
+
+# === R library location ===
 export R_LIBS_USER="${PWD}/Rlibs"
 mkdir -p "${R_LIBS_USER}"
+# Pass into container explicitly
+export SINGULARITYENV_R_LIBS_USER="${R_LIBS_USER}"
 
-# Verify image and bind directory exist
-if [ ! -f "$rstudio_sif" ]; then
-  echo "ERROR: Singularity image not found: $rstudio_sif" >&2
-  exit 1
-fi
-if [ ! -d "$TOBIND" ]; then
-  echo "ERROR: Bind directory not found: $TOBIND" >&2
-  exit 1
-fi
+# === Checks ===
+[ -f "$rstudio_sif" ] || { echo "ERROR: Missing Singularity image $rstudio_sif" >&2; exit 1; }
+[ -d "$TOBIND" ] || { echo "ERROR: Missing bind directory $TOBIND" >&2; exit 1; }
 
-# Create temporary working directory
+# === Working dirs ===
 workdir=$(python3 -c 'import tempfile; print(tempfile.mkdtemp())')
 mkdir -p -m 700 \
-  "${workdir}/run" \
-  "${workdir}/tmp" \
-  "${workdir}/var/lib/rstudio-server"
+    "${workdir}/run" \
+    "${workdir}/tmp" \
+    "${workdir}/var/lib/rstudio-server"
 
-# Create database config
-cat > ${workdir}/database.conf <<END
+# === Database config ===
+cat > "${workdir}/database.conf" <<END
 provider=sqlite
 directory=/var/lib/rstudio-server
 END
 
-# rsession wrapper
-cat > "${workdir}/rsession.sh" <<"END"
+# === RSession wrapper ===
+cat > "${workdir}/rsession.sh" <<END
 #!/bin/sh
 export R_LIBS_USER="${R_LIBS_USER}"
-mkdir -p "\${R_LIBS_USER}"
+mkdir -p "${R_LIBS_USER}"
 export R_OPTIONS="--no-restore --no-save"
 exec /usr/lib/rstudio-server/bin/rsession "\$@"
 END
 chmod +x "${workdir}/rsession.sh"
 
-# rsession config
-cat > "${workdir}/rsession.conf" << END
+# === RSession config ===
+cat > "${workdir}/rsession.conf" <<END
 session-default-working-dir=${PWD}
 session-default-new-project-dir=${PWD}
 END
 
-# Bind mounts
+# === Bind mounts ===
 export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND},${workdir}/run:/run,${workdir}/tmp:/tmp,${workdir}/var/lib/rstudio-server:/var/lib/rstudio-server,${workdir}/database.conf:/etc/rstudio/database.conf"
 
-# Environment variables for RStudio
+# === Env for RStudio ===
 export SINGULARITYENV_RSTUDIO_SESSION_TIMEOUT=0
 export SINGULARITYENV_USER=$(id -un)
 export SINGULARITYENV_PASSWORD=$(openssl rand -base64 15)
 
-# Find unused port
+# === Port ===
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
 
-# Print connection info
+# === Connection info ===
 cat 1>&2 <<END
 1. SSH tunnel from your workstation using:
    ssh -N -L 8787:${HOSTNAME}.${HOSTURL}:${PORT} ${SINGULARITYENV_USER}@${HOSTNAME}.${HOSTURL}
@@ -88,15 +82,14 @@ Workdir: ${workdir}
 Log file: ${workdir}/rstudio.log
 END
 
-# Run RStudio Server inside container, log output to file
+# === Start RStudio Server ===
 singularity exec --cleanenv \
-    --scratch /run,/tmp,/var/lib/rstudio-server \
     --workdir "${workdir}" \
     "${rstudio_sif}" \
     rserver \
       --www-port "${PORT}" \
       --auth-none=0 \
-      --auth-pam-helper-path=pam-helper \
+      --auth-pam-helper-path=/usr/lib/rstudio-server/bin/pam-helper \
       --auth-stay-signed-in-days=30 \
       --auth-timeout-minutes=0 \
       --server-user="${SINGULARITYENV_USER}" \
@@ -104,6 +97,6 @@ singularity exec --cleanenv \
       --server-daemonize=0 \
       2>&1 | tee "${workdir}/rstudio.log"
 
-# If it exits quickly, print the last 20 lines of the log
+# If it fails, show last logs
 echo "===== RStudio Server log tail ====="
 tail -n 20 "${workdir}/rstudio.log" || true
