@@ -95,7 +95,7 @@ singularity exec --cleanenv \
       --server-user="${SINGULARITYENV_USER}" \
       --rsession-path=/etc/rstudio/rsession.sh \
       --server-daemonize=0 \
-      2>&1 | tee "${workdir}/rstudio.log"
+      2>&1 | tee "${PWD}/rstudio.log"
 
 # If it fails, show last logs
 echo "===== RStudio Server log tail ====="
