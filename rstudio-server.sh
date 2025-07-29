@@ -7,56 +7,74 @@
 #SBATCH --mem=8192
 #SBATCH --output=rstudio-server.job.%j
 
+set -euo pipefail
+set -x  # Debug: show each command as it's executed
+
 # Path to Singularity image and directories to bind
 rstudio_sif="bioconductor_docker_3.21-R-4.5.1.sif"
-TOBIND=/nemo/stp/babs/working/bootj
-
-set -euo pipefail
+TOBIND="/nemo/stp/babs/working/bootj"
 
 # Load Singularity
 module load Singularity/3.6.4
 
 # Host URL for SSH tunnel
-HOSTURL=nemo.thecrick.org
+HOSTURL="nemo.thecrick.org"
 
-# Create temporary working directory
-workdir=$(python3 -c 'import tempfile; print(tempfile.mkdtemp())')
-
-if [ -z "$workdir" ]; then
-  echo "Failed to create temporary workdir" >&2
+# --- Sanity checks ---
+if [ ! -f "${rstudio_sif}" ]; then
+  echo "ERROR: Singularity image not found: ${rstudio_sif}" >&2
   exit 1
 fi
 
-# Create rsession.sh wrapper to isolate R_LIBS_USER and suppress session restore
-cat > "${workdir}/rsession.sh" <<"END"
+if [ ! -d "${TOBIND}" ]; then
+  echo "ERROR: Bind directory not found: ${TOBIND}" >&2
+  exit 1
+fi
+
+# Create temporary working directory
+workdir=$(python3 -c 'import tempfile; print(tempfile.mkdtemp())')
+if [ -z "$workdir" ]; then
+  echo "ERROR: Failed to create temporary workdir" >&2
+  exit 1
+fi
+
+mkdir -p -m 700 "${workdir}"/{run,tmp,var/lib/rstudio-server}
+
+# --- Create debug-enabled rsession.sh ---
+cat > "${workdir}/rsession.sh" <<'END'
 #!/bin/sh
-export R_LIBS_USER=${HOME}/R/rocker-rstudio/bioconductor_docker_3.21-R-4.5.1
+echo "[$(date)] rsession.sh invoked" >> "${HOME}/rsession_debug.log"
+export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE:-1}
+export R_LIBS_USER="${HOME}/R/rocker-rstudio/bioconductor_docker_3.21-R-4.5.1"
 mkdir -p "${R_LIBS_USER}"
-# Prevent R from restoring saved sessions by default
 export R_OPTIONS="--no-restore --no-save"
-exec /usr/lib/rstudio-server/bin/rsession "${@}"
+exec /usr/lib/rstudio-server/bin/rsession "$@"
 END
 
 chmod +x "${workdir}/rsession.sh"
 
-# Create rsession.conf to set default working and project directory
-cat > "${workdir}/rsession.conf" << END
+# --- Create rsession.conf to set working directory ---
+cat > "${workdir}/rsession.conf" <<END
 session-default-working-dir=${PWD}
 session-default-new-project-dir=${PWD}
 END
 
-# Directories to bind into the container
-export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND}"
+# --- Bind directories ---
+export SINGULARITY_BIND="${workdir}/rsession.sh:/etc/rstudio/rsession.sh,${workdir}/rsession.conf:/etc/rstudio/rsession.conf,${TOBIND},${workdir}/run:/run,${workdir}/tmp:/tmp,${workdir}/var/lib/rstudio-server:/var/lib/rstudio-server"
 
-# RStudio Server environment configuration
+# --- Environment variables for RStudio Server ---
 export SINGULARITYENV_RSTUDIO_SESSION_TIMEOUT=0
 export SINGULARITYENV_USER=$(id -un)
 export SINGULARITYENV_PASSWORD=$(openssl rand -base64 15)
 
-# Allocate an unused port for RStudio Server
+# --- Allocate an unused port ---
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+if [ -z "$PORT" ]; then
+  echo "ERROR: Failed to allocate a port" >&2
+  exit 1
+fi
 
-# Output connection instructions to stderr
+# --- Connection instructions ---
 cat 1>&2 <<END
 1. SSH tunnel from your workstation using:
 
@@ -73,9 +91,11 @@ To stop your session:
 
 1. Click the power button in RStudio
 2. Or run: scancel -f ${SLURM_JOB_ID}
+
+Workdir: ${workdir}
 END
 
-# Launch RStudio Server in container
+# --- Run RStudio Server in the foreground with debug logging ---
 singularity exec --cleanenv \
     --scratch /run,/tmp,/var/lib/rstudio-server \
     --workdir "${workdir}" \
@@ -87,6 +107,8 @@ singularity exec --cleanenv \
       --auth-stay-signed-in-days=30 \
       --auth-timeout-minutes=0 \
       --server-user="${SINGULARITYENV_USER}" \
-      --rsession-path=/etc/rstudio/rsession.sh
+      --rsession-path=/etc/rstudio/rsession.sh \
+      --server-daemonize=0 \
+      --log-stderr
 
 printf 'rserver exited\n' 1>&2
