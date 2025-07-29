@@ -40,7 +40,7 @@ mkdir -p -m 700 \
 # rsession wrapper
 cat > "${workdir}/rsession.sh" <<"END"
 #!/bin/sh
-export R_LIBS_USER="${HOME}/R/rocker-rstudio/bioconductor_docker_3.21-R-4.5.1"
+export R_LIBS_USER="${pwd}/Rlibs"
 mkdir -p "${R_LIBS_USER}"
 export R_OPTIONS="--no-restore --no-save"
 exec /usr/lib/rstudio-server/bin/rsession "$@"
