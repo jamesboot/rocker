@@ -6,6 +6,8 @@ Setting up rocker singularity container and running remote rstudio session on HP
 
 ### a) Setup a directory/cache for singularity images
 
+This is a permanent directory where you will store singularity images and refer to them in your `rstudio-server.sh` script
+
 ```
 mkdir -p /path/to/dir
 cd -p /path/to/dir
@@ -29,8 +31,13 @@ singularity pull docker://bioconductor/bioconductor_docker:3.21-R-4.5.1
 
 ### a) Edit `rstudio-server.sh`
 
+At the top of the script:
+
+- Specify path to the singularity image downloaded previously - add to `RSTUDIO_SIF` variable at top of script
 - Add relevant `nemo` locations for the `SINGULARITY_BIND` variable - add to `TOBIND` at top of script, separate by commas
-- Specify path to the singularity image downloaded previously - add to `rstudio_sif` variable at top of script
+- Specify path to a folder where `renv` will cache downloads, assign to `RENV_CACHE` - directory doesn't need to exist it will be created if not
+
+Do not edit anything else.
 
 ### b) Run script
 
@@ -43,7 +50,7 @@ sbatch rstudio-server.sh
 The job output contains instructions on how to login to the remote rstudio session.
 
 ```
-cat rstudio-server.job.{JOB_ID}
+cat rstudio-server.job
 ```
 
 ## 3. Setup `renv` (first time only)
